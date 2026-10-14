@@ -47,11 +47,7 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "true"]
-      interval: 5s
-      timeout: 3s
-      start_period: 5s
-      retries: 3
+      test: ["NONE"]
     environment:
       NODE_ENV: production
       PORT: "3201"
@@ -100,7 +96,7 @@ services:
     image: useagent-gateway:${RELEASE_COMMIT:?set RELEASE_COMMIT}
     depends_on:
       backend:
-        condition: service_healthy
+        condition: service_started
     healthcheck:
       test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:'+(process.env.GATEWAY_PORT||'3202')+'/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 5s
@@ -143,7 +139,7 @@ services:
     image: useagent-frontend:${RELEASE_COMMIT:?set RELEASE_COMMIT}
     depends_on:
       backend:
-        condition: service_healthy
+        condition: service_started
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||'3400')+'/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 5s
