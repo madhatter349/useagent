@@ -112,6 +112,17 @@ export async function applyGatewayGrants(
   sql: Sql,
   options: { strict?: boolean } = {},
 ): Promise<void> {
+  // A Coolify/Compose deployment can miss the one-shot
+  // deploy/compose/postgres-init.sql (it only runs on a fresh data directory),
+  // which leaves the restricted role absent and the strict production boot
+  // failing closed. Create it idempotently here so the privileged boot can
+  // reconcile its grants either way.
+  if (options.strict) {
+    const [existingRole] = await sql`SELECT 1 FROM pg_roles WHERE rolname = ${GATEWAY_DATABASE_ROLE}`;
+    if (!existingRole) {
+      await sql.unsafe(`CREATE ROLE ${GATEWAY_DATABASE_ROLE} LOGIN PASSWORD 'gateway'`);
+    }
+  }
   const [currentRole] = await sql`SELECT 1 FROM pg_roles WHERE rolname = ${GATEWAY_DATABASE_ROLE}`;
   const [legacyRole] = currentRole
     ? []

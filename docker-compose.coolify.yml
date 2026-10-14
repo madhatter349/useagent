@@ -30,10 +30,10 @@ services:
       test: ["CMD-SHELL", "pg_isready -U postgres -d useagent"]
       interval: 2s
       timeout: 3s
-      retries: 30
+      retries: 60
+      start_period: 60s
     volumes:
       - useagent-postgres:/var/lib/postgresql/data
-      - ./deploy/compose/postgres-init.sql:/docker-entrypoint-initdb.d/10-gateway-role.sql:ro
     restart: unless-stopped
 
   backend:
@@ -48,10 +48,10 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||'3201')+'/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
-      interval: 5s
-      timeout: 3s
-      start_period: 15s
-      retries: 12
+      interval: 10s
+      timeout: 5s
+      start_period: 180s
+      retries: 30
     environment:
       NODE_ENV: production
       PORT: "3201"
