@@ -76,7 +76,7 @@ services:
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
     # TEMP diagnostic: hold the container open after a crash so the Coolify
     # log endpoint can return the backend's stdout/stderr.
-    command: ["sh", "-c", "bun run src/index.ts; echo '=== BACKEND PROCESS EXITED rc='$?'; sleep 3600"]
+    command: ["sh", "-c", "bun run src/index.ts > /diag/boot.log 2>&1; echo EXIT=$? >> /diag/boot.log; sleep 3600"]
     expose:
       - "3201"
     volumes:
@@ -85,6 +85,7 @@ services:
       - useagent-slack-uploads:/app/backend/.slack-uploads
       - useagent-pi-runtime:/opt/useagent/pi-runtime
       - useagent-codex-app-server:/var/lib/useagent/codex-app-server
+      - useagent-diag:/diag
     restart: unless-stopped
 
   gateway:
@@ -154,11 +155,14 @@ services:
       NEXT_PUBLIC_USEAGENT_RELEASE_COMMIT: ${RELEASE_COMMIT:?set RELEASE_COMMIT}
     expose:
       - "3400"
+    volumes:
+      - useagent-diag:/app/frontend/public/diag
     restart: unless-stopped
 
 volumes:
   useagent-artifacts:
   useagent-codex-app-server:
+  useagent-diag:
   useagent-pi-runtime:
   useagent-postgres:
   useagent-runs:
