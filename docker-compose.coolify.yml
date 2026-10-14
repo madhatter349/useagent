@@ -1,21 +1,19 @@
 # UseAgent on Coolify.
 #
-# Adapted from compose.local.yaml for Coolify's bridge-network deployment. The
-# differences are deliberate and minimal:
+# Adapted from compose.local.yaml for Coolify's bridge-network deployment:
+#   * services `expose` their ports instead of publishing them on the host, so
+#     Coolify's proxy can route to them without colliding with host ports; the
+#     frontend and gateway carry the public domains via docker_compose_domains;
+#   * the backend image build stages the native runtime archive from the public
+#     GitHub release (upstream stages it in CI before `docker build`);
+#   * the restricted gateway database role is created by the backend boot
+#     (backend/src/db/gateway-grants.ts) rather than a one-shot init script.
 #
-#   1. Services `expose` their ports instead of publishing them on the host, so
-#      Coolify's proxy can route to the containers over the compose network
-#      without colliding with host ports. The frontend and gateway carry the
-#      public domains via the application's docker_compose_domains setting.
-#   2. Every secret is read from the application environment (Coolify
-#      interpolates `${...}` and also injects `env_file: ['.env']`), so nothing
-#      sensitive is committed.
-#   3. The backend image build stages the native runtime archive from the public
-#      GitHub release; upstream only stages it in CI before `docker build`, and
-#      the Dockerfile refuses to build without it.
-#
-# Everything else (Postgres + pgvector, the three services, healthchecks and
-# volumes) mirrors the upstream local-parity stack.
+# Coolify injects `env_file: ['.env']` into EVERY service, so the app-level
+# environment must not contain GATEWAY_DATABASE_URL: the backend's knowledge
+# store treats it as the database to use and would connect as the restricted
+# role. The gateway's restricted URL is therefore set literally on the gateway
+# service only.
 
 name: useagent
 
@@ -47,7 +45,11 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["NONE"]
+      test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||'3201')+'/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 180s
+      retries: 30
     environment:
       NODE_ENV: production
       PORT: "3201"
@@ -74,9 +76,6 @@ services:
       CUBE_TEMPLATE_ID: ${CUBE_TEMPLATE_ID:-}
       CUBE_SANDBOX_DOMAIN: ${CUBE_SANDBOX_DOMAIN:-cube.app}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-    # TEMP diagnostic: hold the container open after a crash so the Coolify
-    # log endpoint can return the backend's stdout/stderr.
-    command: ["sh", "-c", "bun run src/index.ts > /tmp/boot.log 2>&1; echo ===BACKEND_EXIT=$?; cat /tmp/boot.log; sleep 3600"]
     expose:
       - "3201"
     volumes:
@@ -85,7 +84,6 @@ services:
       - useagent-slack-uploads:/app/backend/.slack-uploads
       - useagent-pi-runtime:/opt/useagent/pi-runtime
       - useagent-codex-app-server:/var/lib/useagent/codex-app-server
-      - useagent-diag:/diag
     restart: unless-stopped
 
   gateway:
@@ -97,19 +95,19 @@ services:
     image: useagent-gateway:${RELEASE_COMMIT:?set RELEASE_COMMIT}
     depends_on:
       backend:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:'+(process.env.GATEWAY_PORT||'3202')+'/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 5s
       timeout: 3s
-      start_period: 10s
-      retries: 12
+      start_period: 15s
+      retries: 20
     environment:
       NODE_ENV: production
       GATEWAY_PORT: "3202"
       USEAGENT_BIND_HOST: 0.0.0.0
       USEAGENT_DEV_MODE: "false"
-      GATEWAY_DATABASE_URL: ${GATEWAY_DATABASE_URL:?set GATEWAY_DATABASE_URL}
+      GATEWAY_DATABASE_URL: postgres://useagent_gateway:gateway@postgres:5432/useagent
       PROVIDER_GATEWAY_SECRET: ${PROVIDER_GATEWAY_SECRET:?set PROVIDER_GATEWAY_SECRET}
       TOOL_GATEWAY_SECRET: ${TOOL_GATEWAY_SECRET:?set TOOL_GATEWAY_SECRET}
       SECRETS_ENCRYPTION_KEY: ${SECRETS_ENCRYPTION_KEY:?set SECRETS_ENCRYPTION_KEY}
@@ -140,13 +138,13 @@ services:
     image: useagent-frontend:${RELEASE_COMMIT:?set RELEASE_COMMIT}
     depends_on:
       backend:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||'3400')+'/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 5s
       timeout: 3s
       start_period: 15s
-      retries: 12
+      retries: 20
     environment:
       NODE_ENV: production
       HOSTNAME: 0.0.0.0
@@ -155,14 +153,11 @@ services:
       NEXT_PUBLIC_USEAGENT_RELEASE_COMMIT: ${RELEASE_COMMIT:?set RELEASE_COMMIT}
     expose:
       - "3400"
-    volumes:
-      - useagent-diag:/app/frontend/.next-build/static/diag
     restart: unless-stopped
 
 volumes:
   useagent-artifacts:
   useagent-codex-app-server:
-  useagent-diag:
   useagent-pi-runtime:
   useagent-postgres:
   useagent-runs:
