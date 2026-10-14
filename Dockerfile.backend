@@ -83,6 +83,9 @@ COPY packages/sandbox-local ./packages/sandbox-local
 RUN set -eux; \
     asset_dir=/app/backend/runtime-assets; \
     archive="$asset_dir/native-runtime-dd2b1389590f.tar.gz"; \
+    if [ ! -f "$archive" ]; then \
+      curl -fsSL "https://github.com/useagenthq/useagent/releases/download/native-runtime-dd2b1389590f/native-runtime-dd2b1389590f.tar.gz" -o "$archive"; \
+    fi; \
     test -f "$archive"; \
     printf '%s  %s\n' \
       '64faa8040f236a620acd928cd648df931311274cfd1501b570e29fb09914e35e' \
