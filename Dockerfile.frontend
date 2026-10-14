@@ -20,6 +20,11 @@ ENV NEXT_PUBLIC_USEAGENT_RELEASE_COMMIT=${RELEASE_COMMIT}
 # Client execution-graph kill switch, a build-time input: on unless a build passes off.
 ARG NEXT_PUBLIC_EXECUTION_GRAPH_ROLLOUT=read
 ENV NEXT_PUBLIC_EXECUTION_GRAPH_ROLLOUT=${NEXT_PUBLIC_EXECUTION_GRAPH_ROLLOUT}
+# The /api/* rewrite destination is compiled into the build manifest, so the
+# backend origin must be present at build time. Coolify/compose reaches the
+# backend as `backend:3201`, not localhost.
+ARG USEAGENT_API_ORIGIN=http://backend:3201
+ENV USEAGENT_API_ORIGIN=${USEAGENT_API_ORIGIN}
 
 WORKDIR /app
 COPY --from=dependencies /app/frontend/node_modules ./frontend/node_modules

@@ -135,6 +135,7 @@ services:
       dockerfile: Dockerfile.frontend
       args:
         RELEASE_COMMIT: ${RELEASE_COMMIT:?set RELEASE_COMMIT}
+        USEAGENT_API_ORIGIN: http://backend:3201
     image: useagent-frontend:${RELEASE_COMMIT:?set RELEASE_COMMIT}
     depends_on:
       backend:
