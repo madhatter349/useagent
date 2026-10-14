@@ -76,7 +76,7 @@ services:
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
     # TEMP diagnostic: hold the container open after a crash so the Coolify
     # log endpoint can return the backend's stdout/stderr.
-    command: ["sleep", "3600"]
+    command: ["sh", "-c", "bun run src/index.ts > /tmp/boot.log 2>&1; echo ===BACKEND_EXIT=$?; cat /tmp/boot.log; sleep 3600"]
     expose:
       - "3201"
     volumes:
