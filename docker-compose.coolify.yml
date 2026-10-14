@@ -156,7 +156,7 @@ services:
     expose:
       - "3400"
     volumes:
-      - useagent-diag:/app/frontend/public/diag
+      - useagent-diag:/app/frontend/.next-build/static/diag
     restart: unless-stopped
 
 volumes:
